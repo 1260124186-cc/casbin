@@ -452,6 +452,14 @@ func (e *SyncedEnforcer) UpdateNamedPolicies(ptype string, p1 [][]string, p2 [][
 	return e.Enforcer.UpdateNamedPolicies(ptype, p1, p2)
 }
 
+// MigrateImplicitPriority converts order-based implicit priorities into
+// explicit numeric priority values under the enforcer write lock.
+func (e *SyncedEnforcer) MigrateImplicitPriority(ptype string) (*MigratePriorityResult, error) {
+	e.m.Lock()
+	defer e.m.Unlock()
+	return e.Enforcer.MigrateImplicitPriority(ptype)
+}
+
 func (e *SyncedEnforcer) UpdateFilteredPolicies(newPolicies [][]string, fieldIndex int, fieldValues ...string) (bool, error) {
 	e.m.Lock()
 	defer e.m.Unlock()
