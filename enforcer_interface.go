@@ -98,6 +98,7 @@ type IEnforcer interface {
 	DeleteDomains(domains ...string) (bool, error)
 	GetAllDomains() ([]string, error)
 	GetAllRolesByDomain(domain string) ([]string, error)
+	ReconcileDomainRoleLeases(source string, leases []DomainRoleLease) (*ReconcileDomainRoleLeasesResult, error)
 
 	/* Management API */
 	GetAllSubjects() ([]string, error)
