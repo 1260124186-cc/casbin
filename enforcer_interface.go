@@ -156,6 +156,9 @@ type IEnforcer interface {
 	UpdateNamedGroupingPolicy(ptype string, oldRule []string, newRule []string) (bool, error)
 	UpdateNamedGroupingPolicies(ptype string, oldRules [][]string, newRules [][]string) (bool, error)
 
+	/* Managed domain policy reconciliation */
+	ReconcileDomainPolicySnapshot(snapshot DomainPolicySnapshot) error
+
 	/* Management API with autoNotifyWatcher disabled */
 	SelfAddPolicy(sec string, ptype string, rule []string) (bool, error)
 	SelfAddPolicies(sec string, ptype string, rules [][]string) (bool, error)
