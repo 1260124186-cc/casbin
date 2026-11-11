@@ -17,7 +17,10 @@
 
 package persist
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 // TransactionalAdapter defines the interface for adapters that support transactions.
 // Adapters implementing this interface can participate in Casbin transactions.
@@ -46,6 +49,32 @@ type PolicyOperation struct {
 	PolicyType string        // The policy type (p, p2, g, g2, etc.)
 	Rules      [][]string    // The policy rules to operate on
 	OldRules   [][]string    // For update operations, the old rules to replace
+}
+
+// policyOperationJSON is the stable serialized form of PolicyOperation used
+// by persistent publishers such as the notification outbox.
+type policyOperationJSON struct {
+	Type       OperationType `json:"type"`
+	Section    string        `json:"section"`
+	PolicyType string        `json:"policy_type"`
+	Rules      [][]string    `json:"rules,omitempty"`
+	OldRules   [][]string    `json:"old_rules,omitempty"`
+}
+
+// MarshalJSON emits the operation with explicit, stable field names while
+// leaving the in-memory struct free of serialization tags.
+func (p PolicyOperation) MarshalJSON() ([]byte, error) {
+	return json.Marshal(policyOperationJSON(p))
+}
+
+// UnmarshalJSON restores an operation produced by MarshalJSON.
+func (p *PolicyOperation) UnmarshalJSON(data []byte) error {
+	encoded := policyOperationJSON{}
+	if err := json.Unmarshal(data, &encoded); err != nil {
+		return err
+	}
+	*p = PolicyOperation(encoded)
+	return nil
 }
 
 // OperationType represents the type of policy operation.
