@@ -47,17 +47,29 @@ type EnforcerPool struct {
 	generation uint64
 	enforcers  map[string]*enforcerPoolEntry
 	lru        *list.List
+	// residents pins tenant ids so reconciliation never evicts them, even
+	// when they are absent from the manifest. Pins survive InvalidateAll.
+	residents map[string]struct{}
+	// reconcileMu serializes reconciliation passes so a pass always swaps a
+	// snapshot it planned against, never an interleaved one.
+	reconcileMu sync.Mutex
 }
 
 type enforcerPoolEntry struct {
 	enforcer *SyncedEnforcer
 	elem     *list.Element
+	// generation is the tenant policy generation the enforcer was built
+	// from. It is authoritative only when tracked is true.
+	generation uint64
+	tracked    bool
+	resident   bool
 }
 
 var (
 	errNilEnforcerFactory = errors.New("casbin: nil enforcer factory")
 	errNilEnforcer        = errors.New("casbin: enforcer factory returned nil")
 	errNilAdapterFactory  = errors.New("casbin: nil adapter factory")
+	errNilEnforcerPool    = errors.New("casbin: nil enforcer pool")
 )
 
 // NewEnforcerPool creates a pool that keeps at most maxSize enforcers.
@@ -143,6 +155,7 @@ func (p *EnforcerPool) Get(key string, filter interface{}) (*SyncedEnforcer, err
 
 		entry := &enforcerPoolEntry{enforcer: e}
 		entry.elem = p.lru.PushFront(key)
+		_, entry.resident = p.residents[key]
 		p.enforcers[key] = entry
 		p.evictLocked()
 		p.mu.Unlock()
@@ -192,6 +205,9 @@ func (p *EnforcerPool) initLocked() {
 	if p.lru == nil {
 		p.lru = list.New()
 	}
+	if p.residents == nil {
+		p.residents = make(map[string]struct{})
+	}
 }
 
 func (p *EnforcerPool) evictLocked() {
@@ -201,6 +217,10 @@ func (p *EnforcerPool) evictLocked() {
 	for len(p.enforcers) > p.maxSize {
 		back := p.lru.Back()
 		if back == nil {
+			return
+		}
+		// Resident tenants are pinned and must never be LRU-evicted.
+		if entry, ok := p.enforcers[back.Value.(string)]; ok && entry.resident {
 			return
 		}
 		delete(p.enforcers, back.Value.(string))
